@@ -2,7 +2,7 @@
   "id": "necrologist-horde-sync",
   "title": "Necrologist Horde Sync",
   "description": "Syncs stats between Necrologist summoner and zombie horde for PF2e. Automatically synchronizes AC, saves, and HP between the summoner and their horde.",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "url": "https://github.com/Dibbli/necrologist-horde-sync",
   "bugs": "https://github.com/Dibbli/necrologist-horde-sync/issues",
   "compatibility": {
