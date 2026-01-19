@@ -12,7 +12,7 @@
  * @module necrologist-horde-sync
  */
 
-import { MODULE_ID, log, logError } from "./utils.js";
+import { MODULE_ID, log, logError, canModifyActor } from "./utils.js";
 import { findLinkedSummoner, findLinkedHordes } from "./effects.js";
 import {
   syncingActors,
@@ -28,8 +28,8 @@ import { showLinkDialog, showUnlinkDialog } from "./dialogs.js";
 /** @type {number|null} */
 let updateActorHookId = null;
 
-/** @type {number|null} */
-let debounceTimer = null;
+/** @type {Map<string, number>} Debounce timers keyed by actor ID */
+const debounceTimers = new Map();
 
 /**
  * Debounced sync handler
@@ -44,13 +44,14 @@ function debouncedSync(actor, changes) {
 
   const debounceMs = game.settings.get(MODULE_ID, "debounceMs") || 250;
 
-  if (debounceTimer) {
-    clearTimeout(debounceTimer);
+  if (debounceTimers.has(actor.id)) {
+    clearTimeout(debounceTimers.get(actor.id));
   }
 
-  debounceTimer = setTimeout(() => {
+  debounceTimers.set(actor.id, setTimeout(() => {
+    debounceTimers.delete(actor.id);
     handleActorUpdate(actor, changes);
-  }, debounceMs);
+  }, debounceMs));
 }
 
 /**
@@ -59,12 +60,12 @@ function debouncedSync(actor, changes) {
  * @param {Object} changes - The changes made
  */
 async function handleActorUpdate(actor, changes) {
-  if (!game.user?.isGM) return;
-
   const linkedHordes = findLinkedHordes(actor);
   if (linkedHordes.length > 0) {
+    if (!canModifyActor(actor)) return;
     log(`Summoner "${actor.name}" changed, syncing to ${linkedHordes.length} horde(s)`);
     for (const horde of linkedHordes) {
+      if (!canModifyActor(horde)) continue;
       await syncSummonerToHorde(actor, horde);
     }
     return;
@@ -73,7 +74,7 @@ async function handleActorUpdate(actor, changes) {
   const summonerId = findLinkedSummoner(actor);
   if (summonerId && changes?.system?.attributes?.hp !== undefined) {
     const summoner = game.actors.get(summonerId);
-    if (summoner) {
+    if (summoner && canModifyActor(summoner)) {
       log(`Horde "${actor.name}" HP changed, syncing to summoner`);
       await syncHordeToSummoner(actor, summoner);
     }
@@ -121,6 +122,32 @@ function registerHooks() {
     } catch (error) {
       logError("Error in updateActor hook:", error);
     }
+  });
+
+  // Sync on actor import (e.g., when importing a horde that references an existing summoner)
+  Hooks.on("createActor", async (actor, options, userId) => {
+    try {
+      if (userId !== game.user?.id) return;
+
+      const summonerId = findLinkedSummoner(actor);
+      if (summonerId && canModifyActor(actor)) {
+        const summoner = game.actors.get(summonerId);
+        if (summoner && canModifyActor(summoner)) {
+          log(`Imported horde "${actor.name}", syncing from summoner`);
+          await syncSummonerToHorde(summoner, actor);
+        }
+      }
+    } catch (error) {
+      logError("Error in createActor hook:", error);
+    }
+  });
+
+  // Clean up debounce timers when game closes
+  Hooks.on("closeGame", () => {
+    for (const timer of debounceTimers.values()) {
+      clearTimeout(timer);
+    }
+    debounceTimers.clear();
   });
 
   log("Hooks registered");

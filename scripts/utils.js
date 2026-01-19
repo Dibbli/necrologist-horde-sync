@@ -42,9 +42,11 @@ export function logError(...args) {
 }
 
 /**
- * Check if current user is the GM
+ * Check if user can modify an actor (owns it or is GM)
+ * @param {Actor} actor - The actor to check
  * @returns {boolean}
  */
-export function isGM() {
-  return game.user?.isGM ?? false;
+export function canModifyActor(actor) {
+  if (!actor) return false;
+  return game.user?.isGM || actor.isOwner;
 }

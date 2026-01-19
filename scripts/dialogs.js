@@ -3,7 +3,7 @@
  * @module dialogs
  */
 
-import { escapeHtml, isGM } from "./utils.js";
+import { escapeHtml } from "./utils.js";
 import { findLinkedSummoner } from "./effects.js";
 import { linkHorde, unlinkHorde } from "./sync.js";
 
@@ -11,40 +11,29 @@ import { linkHorde, unlinkHorde } from "./sync.js";
  * Show dialog to link a horde to a summoner
  */
 export function showLinkDialog() {
-  if (!isGM()) {
-    ui.notifications.warn("Only the GM can link hordes to summoners.");
+  // Filter to characters the user owns (or all if GM)
+  const ownedCharacters = game.actors.filter(
+    (a) => a.type === "character" && a.isOwner
+  );
+
+  if (ownedCharacters.length < 2) {
+    ui.notifications.warn("You need ownership of at least 2 characters to link.");
     return;
   }
 
-  const characters = game.actors.filter((a) => a.type === "character");
-  const npcs = game.actors.filter((a) => a.type === "npc");
-
-  if (characters.length === 0) {
-    ui.notifications.warn("No character actors found.");
-    return;
-  }
-
-  if (npcs.length === 0) {
-    ui.notifications.warn("No NPC actors found.");
-    return;
-  }
-
-  const summonerOptions = characters
-    .map((a) => `<option value="${a.id}">${escapeHtml(a.name)}</option>`)
-    .join("");
-  const hordeOptions = npcs
+  const characterOptions = ownedCharacters
     .map((a) => `<option value="${a.id}">${escapeHtml(a.name)}</option>`)
     .join("");
 
   const content = `
     <form>
       <div class="form-group">
-        <label>Summoner (Character):</label>
-        <select name="summonerId" style="width:100%">${summonerOptions}</select>
+        <label>Summoner:</label>
+        <select name="summonerId" style="width:100%">${characterOptions}</select>
       </div>
       <div class="form-group">
-        <label>Horde (NPC):</label>
-        <select name="hordeId" style="width:100%">${hordeOptions}</select>
+        <label>Horde:</label>
+        <select name="hordeId" style="width:100%">${characterOptions}</select>
       </div>
     </form>
   `;
@@ -59,6 +48,10 @@ export function showLinkDialog() {
         callback: (html) => {
           const summonerId = html.find('[name="summonerId"]').val();
           const hordeId = html.find('[name="hordeId"]').val();
+          if (summonerId === hordeId) {
+            ui.notifications.warn("Summoner and Horde must be different characters.");
+            return;
+          }
           linkHorde(summonerId, hordeId);
         },
       },
@@ -75,13 +68,10 @@ export function showLinkDialog() {
  * Show dialog to unlink a horde
  */
 export function showUnlinkDialog() {
-  if (!isGM()) {
-    ui.notifications.warn("Only the GM can unlink hordes.");
-    return;
-  }
-
+  // Find linked hordes the user owns
   const linkedHordes = [];
   for (const actor of game.actors) {
+    if (!actor.isOwner) continue;
     const summonerId = findLinkedSummoner(actor);
     if (summonerId) {
       const summoner = game.actors.get(summonerId);

@@ -3,7 +3,7 @@
  * @module sync
  */
 
-import { MODULE_ID, log, logError, isGM } from "./utils.js";
+import { MODULE_ID, log, logError, canModifyActor } from "./utils.js";
 import {
   findBondEffect,
   findLinkedSummoner,
@@ -89,11 +89,10 @@ export async function syncHordeToSummoner(horde, summoner) {
 
   try {
     const hordeHP = horde.system.attributes?.hp?.value ?? 0;
-    const hordeHPMax = horde.system.attributes?.hp?.max ?? 0;
 
+    // Only sync HP value, not max - summoner is source of truth for max HP
     await summoner.update({
       "system.attributes.hp.value": hordeHP,
-      "system.attributes.hp.max": hordeHPMax,
     });
 
     log(`Sync complete: horde -> summoner`);
@@ -107,21 +106,19 @@ export async function syncHordeToSummoner(horde, summoner) {
 }
 
 /**
- * Sync all linked pairs
+ * Sync all linked pairs the user owns
  * @returns {Promise<number>} Number of hordes synced
  */
 export async function syncAll() {
-  if (!isGM()) {
-    ui.notifications.warn("Only the GM can sync hordes.");
-    return 0;
-  }
-
-  log("Syncing all linked pairs");
+  log("Syncing all owned linked pairs");
 
   const processedSummoners = new Set();
   let syncCount = 0;
 
   for (const actor of game.actors) {
+    // Only sync hordes the user can modify
+    if (!canModifyActor(actor)) continue;
+
     const summonerId = findLinkedSummoner(actor);
     if (!summonerId) continue;
 
@@ -131,18 +128,26 @@ export async function syncAll() {
       continue;
     }
 
+    // Also need permission on summoner to sync
+    if (!canModifyActor(summoner)) continue;
+
     if (!processedSummoners.has(summonerId)) {
       processedSummoners.add(summonerId);
 
       const hordes = findLinkedHordes(summoner);
       for (const horde of hordes) {
+        if (!canModifyActor(horde)) continue;
         const success = await syncSummonerToHorde(summoner, horde);
         if (success) syncCount++;
       }
     }
   }
 
-  ui.notifications.info(`Synced ${syncCount} horde(s)`);
+  if (syncCount === 0) {
+    ui.notifications.info("No linked hordes found that you can sync.");
+  } else {
+    ui.notifications.info(`Synced ${syncCount} horde(s)`);
+  }
   log("Sync all complete");
   return syncCount;
 }
@@ -154,8 +159,8 @@ export async function syncAll() {
  * @returns {Promise<boolean>} Success status
  */
 export async function linkHorde(summonerId, hordeId) {
-  if (!isGM()) {
-    ui.notifications.warn("Only the GM can link hordes to summoners.");
+  if (summonerId === hordeId) {
+    ui.notifications.warn("Cannot link an actor to itself.");
     return false;
   }
 
@@ -169,6 +174,11 @@ export async function linkHorde(summonerId, hordeId) {
 
   if (!horde) {
     ui.notifications.error(`Horde actor not found: ${hordeId}`);
+    return false;
+  }
+
+  if (!canModifyActor(summoner) || !canModifyActor(horde)) {
+    ui.notifications.warn("You need ownership of both actors to link them.");
     return false;
   }
 
@@ -203,15 +213,15 @@ export async function linkHorde(summonerId, hordeId) {
  * @returns {Promise<boolean>} Success status
  */
 export async function unlinkHorde(hordeId) {
-  if (!isGM()) {
-    ui.notifications.warn("Only the GM can unlink hordes.");
-    return false;
-  }
-
   const horde = game.actors.get(hordeId);
 
   if (!horde) {
     ui.notifications.error(`Horde actor not found: ${hordeId}`);
+    return false;
+  }
+
+  if (!canModifyActor(horde)) {
+    ui.notifications.warn("You need ownership of the horde to unlink it.");
     return false;
   }
 
@@ -236,30 +246,32 @@ export async function unlinkHorde(hordeId) {
 }
 
 /**
- * Perform initial sync on ready
+ * Perform initial sync on ready for owned actors
  */
 export async function performInitialSync() {
-  if (!isGM()) {
-    log("Not GM, skipping initial sync");
-    return;
-  }
-
   log("Performing initial sync on world ready");
 
   const processedSummoners = new Set();
 
   for (const actor of game.actors) {
+    // Only sync hordes the user can modify
+    if (!canModifyActor(actor)) continue;
+
     const summonerId = findLinkedSummoner(actor);
     if (!summonerId) continue;
 
     const summoner = game.actors.get(summonerId);
     if (!summoner) continue;
 
+    // Also need permission on summoner
+    if (!canModifyActor(summoner)) continue;
+
     if (!processedSummoners.has(summonerId)) {
       processedSummoners.add(summonerId);
 
       const hordes = findLinkedHordes(summoner);
       for (const horde of hordes) {
+        if (!canModifyActor(horde)) continue;
         await syncSummonerToHorde(summoner, horde);
       }
     }
