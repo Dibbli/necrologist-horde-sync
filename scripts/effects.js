@@ -117,6 +117,10 @@ export function createBondEffectData(summonerId, syncOptions = DEFAULT_SYNC_OPTI
     }
   }
 
+  if (syncOptions.hp) {
+    rules.push({ key: "FlatModifier", selector: "hp", value: 0, label: EFFECT_LABEL });
+  }
+
   return {
     name: EFFECT_LABEL,
     type: "effect",
@@ -160,6 +164,9 @@ export function calculateModifiers(summoner, horde, syncOptions = DEFAULT_SYNC_O
       currentMods[skill] = 0;
     }
   }
+  if (syncOptions.hp) {
+    currentMods.hp = 0;
+  }
 
   if (effect?.system?.rules) {
     for (const rule of effect.system.rules) {
@@ -199,6 +206,12 @@ export function calculateModifiers(summoner, horde, syncOptions = DEFAULT_SYNC_O
     }
   }
 
+  if (syncOptions.hp) {
+    const summonerMaxHP = summoner.system.attributes?.hp?.max ?? 0;
+    const hordeBaseMaxHP = (horde.system.attributes?.hp?.max ?? 0) - currentMods.hp;
+    modifiers.hp = summonerMaxHP - hordeBaseMaxHP;
+  }
+
   return modifiers;
 }
 
@@ -235,6 +248,10 @@ export async function updateEffectModifiers(effect, modifiers, syncOptions = DEF
           rules.push({ key: "FlatModifier", selector: skill, value: modifiers[skill], label: EFFECT_LABEL });
         }
       }
+    }
+
+    if (syncOptions.hp && modifiers.hp !== undefined) {
+      rules.push({ key: "FlatModifier", selector: "hp", value: modifiers.hp, label: EFFECT_LABEL });
     }
 
     await effect.update({ "system.rules": rules });

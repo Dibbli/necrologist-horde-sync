@@ -55,6 +55,17 @@ function debouncedSync(actor, changes) {
 }
 
 /**
+ * Trigger sync from summoner to hordes (used when effects/conditions change)
+ * @param {Actor} actor - The actor that may be a summoner
+ */
+function triggerSyncFromSummoner(actor) {
+  const linkedHordes = findLinkedHordes(actor);
+  if (linkedHordes.length > 0) {
+    debouncedSync(actor, {});
+  }
+}
+
+/**
  * Handle actor updates and trigger appropriate sync
  * @param {Actor} actor - The actor that changed
  * @param {Object} changes - The changes made
@@ -139,6 +150,43 @@ function registerHooks() {
       }
     } catch (error) {
       logError("Error in createActor hook:", error);
+    }
+  });
+
+  // Sync when effects/conditions are added to a summoner (e.g., sickened)
+  Hooks.on("createItem", (item, options, userId) => {
+    try {
+      if (userId !== game.user?.id) return;
+      if (item.type !== "effect" && item.type !== "condition") return;
+      const actor = item.parent;
+      if (actor?.documentName !== "Actor") return;
+      triggerSyncFromSummoner(actor);
+    } catch (error) {
+      logError("Error in createItem hook:", error);
+    }
+  });
+
+  Hooks.on("updateItem", (item, changes, options, userId) => {
+    try {
+      if (userId !== game.user?.id) return;
+      if (item.type !== "effect" && item.type !== "condition") return;
+      const actor = item.parent;
+      if (actor?.documentName !== "Actor") return;
+      triggerSyncFromSummoner(actor);
+    } catch (error) {
+      logError("Error in updateItem hook:", error);
+    }
+  });
+
+  Hooks.on("deleteItem", (item, options, userId) => {
+    try {
+      if (userId !== game.user?.id) return;
+      if (item.type !== "effect" && item.type !== "condition") return;
+      const actor = item.parent;
+      if (actor?.documentName !== "Actor") return;
+      triggerSyncFromSummoner(actor);
+    } catch (error) {
+      logError("Error in deleteItem hook:", error);
     }
   });
 

@@ -54,7 +54,6 @@ export async function syncSummonerToHorde(summoner, horde) {
     const updateData = { [`flags.${MODULE_ID}.lastSync`]: Date.now() };
     if (syncOptions.hp) {
       updateData["system.attributes.hp.value"] = summoner.system.attributes?.hp?.value ?? 0;
-      updateData["system.attributes.hp.max"] = summoner.system.attributes?.hp?.max ?? 0;
       updateData["system.attributes.hp.temp"] = summoner.system.attributes?.hp?.temp ?? 0;
     }
     await horde.update(updateData);
