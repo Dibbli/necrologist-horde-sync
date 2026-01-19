@@ -2,31 +2,36 @@
 
 FoundryVTT module for PF2e that syncs stats between Necrologist summoners and their zombie hordes.
 
-> **Note:** This was vibe coded, so don't expect perfection. It works for my use case, YMMV.
+> **Note:** This was mostly vibe coded, so don't expect amazing quality. It works for my use case, YMMV.
 
-## TL;DR
+## Installation
 
-1. Install module in FoundryVTT
-2. Enable it in your world
-3. Import macros from the included compendium (see below)
-4. Click "Link Horde" macro to connect your summoner to their horde
-5. Stats sync automatically from then on
+1. Open FoundryVTT
+2. Go to **Add-on Modules** → **Install Module**
+3. Paste the manifest URL and click **Install**:
 
-## Macros
+```
+https://raw.githubusercontent.com/Dibbli/necrologist-horde-sync/main/module.json
+```
 
-The module includes a compendium pack with ready-to-use macros:
+## Usage
 
-1. Go to **Compendiums** tab in the sidebar
-2. Find **"Necrologist Horde Sync Macros"**
-3. Right-click a macro → **Import**
-4. Drag the macro to your hotbar
+1. Enable the module in your world
+2. Import macros from the included compendium:
+   - Go to **Compendiums** tab
+   - Find **Necrologist Horde Sync Macros**
+   - Right-click a macro → **Import**
+   - Drag to your hotbar
+3. Click **Link Horde** to connect your summoner to their horde
+4. Stats sync automatically from then on
 
-**Included macros:**
+### Included Macros
+
 - **Link Horde** - Opens dialog to link a summoner to a horde
 - **Unlink Horde** - Opens dialog to remove a link
 - **Sync All Hordes** - Force sync all linked pairs
 
-## What it does
+## What It Does
 
 - Syncs AC, saves, and HP from summoner to horde
 - Damage to horde syncs back to summoner (shared HP pool)
@@ -34,8 +39,6 @@ The module includes a compendium pack with ready-to-use macros:
 - Supports multiple summoner/horde pairs
 - Auto-syncs on world load and when stats change
 
-## Manifest URL
+## License
 
-```
-https://raw.githubusercontent.com/Dibbli/necrologist-horde-sync/main/module.json
-```
+MIT License - see [LICENSE](LICENSE) for details.
