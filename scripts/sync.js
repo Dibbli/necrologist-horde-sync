@@ -8,6 +8,8 @@ import {
   findBondEffect,
   findLinkedSummoner,
   findLinkedHordes,
+  getSyncOptions,
+  buildSyncDescription,
   createBondEffectData,
   calculateModifiers,
   updateEffectModifiers,
@@ -40,22 +42,22 @@ export async function syncSummonerToHorde(summoner, horde) {
   }
 
   syncingActors.add(horde.id);
-  log(`Syncing summoner "${summoner.name}" -> horde "${horde.name}"`);
+  const syncOptions = getSyncOptions(horde);
+  log(`Syncing summoner "${summoner.name}" -> horde "${horde.name}"`, syncOptions);
 
   try {
-    const modifiers = calculateModifiers(summoner, horde);
+    const modifiers = calculateModifiers(summoner, horde, syncOptions);
     log("Calculated modifiers:", modifiers);
 
-    await updateEffectModifiers(effect, modifiers);
+    await updateEffectModifiers(effect, modifiers, syncOptions);
 
-    const summonerHP = summoner.system.attributes?.hp?.value ?? 0;
-    const summonerHPMax = summoner.system.attributes?.hp?.max ?? 0;
-
-    await horde.update({
-      "system.attributes.hp.value": summonerHP,
-      "system.attributes.hp.max": summonerHPMax,
-      [`flags.${MODULE_ID}.lastSync`]: Date.now(),
-    });
+    const updateData = { [`flags.${MODULE_ID}.lastSync`]: Date.now() };
+    if (syncOptions.hp) {
+      updateData["system.attributes.hp.value"] = summoner.system.attributes?.hp?.value ?? 0;
+      updateData["system.attributes.hp.max"] = summoner.system.attributes?.hp?.max ?? 0;
+      updateData["system.attributes.hp.temp"] = summoner.system.attributes?.hp?.temp ?? 0;
+    }
+    await horde.update(updateData);
 
     log(`Sync complete: summoner -> horde "${horde.name}"`);
     return true;
@@ -79,6 +81,12 @@ export async function syncHordeToSummoner(horde, summoner) {
     return false;
   }
 
+  const syncOptions = getSyncOptions(horde);
+  if (!syncOptions.hp) {
+    log(`HP sync disabled for horde "${horde.name}", skipping`);
+    return false;
+  }
+
   if (syncingActors.has(summoner.id)) {
     log(`Summoner "${summoner.name}" already syncing, skipping`);
     return false;
@@ -89,10 +97,12 @@ export async function syncHordeToSummoner(horde, summoner) {
 
   try {
     const hordeHP = horde.system.attributes?.hp?.value ?? 0;
+    const hordeTempHP = horde.system.attributes?.hp?.temp ?? 0;
 
-    // Only sync HP value, not max - summoner is source of truth for max HP
+    // Summoner is source of truth for max HP, so only sync value and temp
     await summoner.update({
       "system.attributes.hp.value": hordeHP,
+      "system.attributes.hp.temp": hordeTempHP,
     });
 
     log(`Sync complete: horde -> summoner`);
@@ -116,7 +126,6 @@ export async function syncAll() {
   let syncCount = 0;
 
   for (const actor of game.actors) {
-    // Only sync hordes the user can modify
     if (!canModifyActor(actor)) continue;
 
     const summonerId = findLinkedSummoner(actor);
@@ -128,7 +137,6 @@ export async function syncAll() {
       continue;
     }
 
-    // Also need permission on summoner to sync
     if (!canModifyActor(summoner)) continue;
 
     if (!processedSummoners.has(summonerId)) {
@@ -153,12 +161,17 @@ export async function syncAll() {
 }
 
 /**
+ * @typedef {import('./effects.js').SyncOptions} SyncOptions
+ */
+
+/**
  * Link a horde to a summoner by creating/updating the bond effect
  * @param {string} summonerId - The summoner's actor ID
  * @param {string} hordeId - The horde's actor ID
+ * @param {SyncOptions} [syncOptions] - Which stats to sync (defaults to all)
  * @returns {Promise<boolean>} Success status
  */
-export async function linkHorde(summonerId, hordeId) {
+export async function linkHorde(summonerId, hordeId, syncOptions) {
   if (summonerId === hordeId) {
     ui.notifications.warn("Cannot link an actor to itself.");
     return false;
@@ -182,16 +195,20 @@ export async function linkHorde(summonerId, hordeId) {
     return false;
   }
 
-  log(`Linking horde "${horde.name}" to summoner "${summoner.name}"`);
+  log(`Linking horde "${horde.name}" to summoner "${summoner.name}"`, syncOptions);
 
   try {
     let effect = findBondEffect(horde);
 
     if (effect) {
-      await effect.update({ [`flags.${MODULE_ID}.summonerId`]: summonerId });
+      await effect.update({
+        [`flags.${MODULE_ID}.summonerId`]: summonerId,
+        [`flags.${MODULE_ID}.syncOptions`]: syncOptions,
+        "system.description.value": buildSyncDescription(syncOptions),
+      });
       log("Updated existing bond effect");
     } else {
-      const effectData = createBondEffectData(summonerId);
+      const effectData = createBondEffectData(summonerId, syncOptions);
       const created = await horde.createEmbeddedDocuments("Item", [effectData]);
       effect = created[0];
       log("Created new bond effect");
@@ -254,17 +271,13 @@ export async function performInitialSync() {
   const processedSummoners = new Set();
 
   for (const actor of game.actors) {
-    // Only sync hordes the user can modify
     if (!canModifyActor(actor)) continue;
 
     const summonerId = findLinkedSummoner(actor);
     if (!summonerId) continue;
 
     const summoner = game.actors.get(summonerId);
-    if (!summoner) continue;
-
-    // Also need permission on summoner
-    if (!canModifyActor(summoner)) continue;
+    if (!summoner || !canModifyActor(summoner)) continue;
 
     if (!processedSummoners.has(summonerId)) {
       processedSummoners.add(summonerId);

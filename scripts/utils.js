@@ -8,6 +8,13 @@ export const EFFECT_SLUG = "necrologist-bond";
 export const EFFECT_LABEL = "Necrologist Bond";
 export const EFFECT_ICON = "icons/magic/unholy/strike-body-explode-disintegrate.webp";
 
+/** @type {string[]} PF2e core skills */
+export const SKILLS = [
+  "acrobatics", "arcana", "athletics", "crafting", "deception", "diplomacy",
+  "intimidation", "medicine", "nature", "occultism", "performance", "religion",
+  "society", "stealth", "survival", "thievery"
+];
+
 /**
  * Escape HTML entities to prevent XSS
  * @param {string} str - String to escape

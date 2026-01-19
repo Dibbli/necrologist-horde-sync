@@ -13,7 +13,7 @@
  */
 
 import { MODULE_ID, log, logError, canModifyActor } from "./utils.js";
-import { findLinkedSummoner, findLinkedHordes } from "./effects.js";
+import { findLinkedSummoner, findLinkedHordes, getSyncOptions } from "./effects.js";
 import {
   syncingActors,
   syncSummonerToHorde,
@@ -124,7 +124,7 @@ function registerHooks() {
     }
   });
 
-  // Sync on actor import (e.g., when importing a horde that references an existing summoner)
+  // Sync imported hordes that reference an existing summoner
   Hooks.on("createActor", async (actor, options, userId) => {
     try {
       if (userId !== game.user?.id) return;
@@ -142,7 +142,6 @@ function registerHooks() {
     }
   });
 
-  // Clean up debounce timers when game closes
   Hooks.on("closeGame", () => {
     for (const timer of debounceTimers.values()) {
       clearTimeout(timer);
@@ -178,6 +177,10 @@ function exposeApi() {
       if (!horde) return null;
       const summonerId = findLinkedSummoner(horde);
       return summonerId ? game.actors.get(summonerId) : null;
+    },
+    getSyncOptions: (hordeId) => {
+      const horde = game.actors.get(hordeId);
+      return horde ? getSyncOptions(horde) : null;
     },
   };
 

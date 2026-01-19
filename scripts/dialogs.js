@@ -11,7 +11,6 @@ import { linkHorde, unlinkHorde } from "./sync.js";
  * Show dialog to link a horde to a summoner
  */
 export function showLinkDialog() {
-  // Filter to characters the user owns (or all if GM)
   const ownedCharacters = game.actors.filter(
     (a) => a.type === "character" && a.isOwner
   );
@@ -35,6 +34,23 @@ export function showLinkDialog() {
         <label>Horde:</label>
         <select name="hordeId" style="width:100%">${characterOptions}</select>
       </div>
+      <div class="form-group">
+        <label>Sync Options:</label>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-top:4px">
+          <label style="display:flex;align-items:center;gap:6px">
+            <input type="checkbox" name="syncAC" checked> AC
+          </label>
+          <label style="display:flex;align-items:center;gap:6px">
+            <input type="checkbox" name="syncSaves" checked> Saves (Fort/Ref/Will)
+          </label>
+          <label style="display:flex;align-items:center;gap:6px">
+            <input type="checkbox" name="syncSkills" checked> Skills
+          </label>
+          <label style="display:flex;align-items:center;gap:6px">
+            <input type="checkbox" name="syncHP" checked> HP (shared pool)
+          </label>
+        </div>
+      </div>
     </form>
   `;
 
@@ -52,7 +68,17 @@ export function showLinkDialog() {
             ui.notifications.warn("Summoner and Horde must be different characters.");
             return;
           }
-          linkHorde(summonerId, hordeId);
+          const syncOptions = {
+            ac: html.find('[name="syncAC"]').is(':checked'),
+            saves: html.find('[name="syncSaves"]').is(':checked'),
+            skills: html.find('[name="syncSkills"]').is(':checked'),
+            hp: html.find('[name="syncHP"]').is(':checked'),
+          };
+          if (!syncOptions.ac && !syncOptions.saves && !syncOptions.skills && !syncOptions.hp) {
+            ui.notifications.warn("Please select at least one stat to sync.");
+            return;
+          }
+          linkHorde(summonerId, hordeId, syncOptions);
         },
       },
       cancel: {
@@ -68,7 +94,6 @@ export function showLinkDialog() {
  * Show dialog to unlink a horde
  */
 export function showUnlinkDialog() {
-  // Find linked hordes the user owns
   const linkedHordes = [];
   for (const actor of game.actors) {
     if (!actor.isOwner) continue;

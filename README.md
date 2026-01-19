@@ -1,6 +1,8 @@
 # Necrologist Horde Sync
 
-FoundryVTT module for PF2e that syncs stats between Necrologist summoners and their zombie hordes.
+FoundryVTT module for PF2e that syncs stats between two characters.
+
+While named after my original use case (Necrologist dedication + zombie horde), this module can sync any combination of AC, saves, skills, and HP between any two character actors. Useful for eidolons, companions, or any homebrew that needs stat mirroring.
 
 > **Note:** This was mostly vibe coded, so don't expect amazing quality. It works for my use case, YMMV.
 
@@ -33,11 +35,12 @@ https://raw.githubusercontent.com/Dibbli/necrologist-horde-sync/main/module.json
 
 ## What It Does
 
-- Syncs AC, saves, and HP from summoner to horde
-- Damage to horde syncs back to summoner (shared HP pool)
-- Creates a "Necrologist Bond" effect on the horde
-- Supports multiple summoner/horde pairs
+- Configurable sync options: AC, saves, skills, and/or HP
+- Bidirectional HP sync (shared HP pool with temp HP support)
+- Creates a "Necrologist Bond" effect on the linked character
+- Supports multiple linked pairs per user
 - Auto-syncs on world load and when stats change
+- Works for any user with ownership of both characters (not GM-only)
 
 ## License
 
