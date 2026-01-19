@@ -129,7 +129,6 @@ function calculateModifiers(summoner, horde) {
   const summonerWill = summoner.system.saves?.will?.totalModifier ?? 0;
 
   // Get horde base stats (without our effect)
-  // We need to temporarily calculate what the horde's stats would be without our modifier
   const effect = findBondEffect(horde);
   const currentEffectModifiers = {
     ac: 0,
@@ -264,7 +263,6 @@ async function unlinkHorde(hordeId) {
 
 /**
  * Sync stats from summoner to horde
- * Updates the bond effect's modifiers to match summoner's stats
  * @param {Actor} summoner - The summoner actor
  * @param {Actor} horde - The horde actor
  */
@@ -280,7 +278,7 @@ async function syncSummonerToHorde(summoner, horde) {
     return;
   }
 
-  log(`Syncing summoner "${summoner.name}" → horde "${horde.name}"`);
+  log(`Syncing summoner "${summoner.name}" -> horde "${horde.name}"`);
 
   try {
     // Calculate and apply stat modifiers
@@ -301,7 +299,7 @@ async function syncSummonerToHorde(summoner, horde) {
 
     await horde.update(updateData);
 
-    log(`Sync complete: summoner → horde "${horde.name}"`);
+    log(`Sync complete: summoner -> horde "${horde.name}"`);
   } catch (error) {
     logError("Error syncing summoner to horde:", error);
   }
@@ -318,7 +316,7 @@ async function syncHordeToSummoner(horde, summoner) {
     return;
   }
 
-  log(`Syncing horde "${horde.name}" → summoner "${summoner.name}" (HP only)`);
+  log(`Syncing horde "${horde.name}" -> summoner "${summoner.name}" (HP only)`);
 
   try {
     const hordeHPValue = horde.system.attributes?.hp?.value ?? 0;
@@ -331,7 +329,7 @@ async function syncHordeToSummoner(horde, summoner) {
 
     await summoner.update(updateData);
 
-    log(`Sync complete: horde → summoner`);
+    log(`Sync complete: horde -> summoner`);
   } catch (error) {
     logError("Error syncing horde to summoner:", error);
   }
@@ -342,14 +340,14 @@ async function syncHordeToSummoner(horde, summoner) {
  */
 async function syncAll() {
   if (!isGM()) {
-    log("Not GM, skipping sync");
+    ui.notifications.warn("Only the GM can sync hordes.");
     return;
   }
 
   log("Syncing all linked pairs");
 
-  // Find all actors with bond effects
   const processedSummoners = new Set();
+  let syncCount = 0;
 
   for (const actor of game.actors) {
     const summonerId = findLinkedSummoner(actor);
@@ -361,19 +359,157 @@ async function syncAll() {
       continue;
     }
 
-    // Only sync from each summoner once
     if (!processedSummoners.has(summonerId)) {
       processedSummoners.add(summonerId);
 
       const hordes = findLinkedHordes(summoner);
       for (const horde of hordes) {
         await syncSummonerToHorde(summoner, horde);
+        syncCount++;
       }
     }
   }
 
+  ui.notifications.info(`Synced ${syncCount} horde(s)`);
   log("Sync all complete");
 }
+
+// ============================================
+// DIALOG UI FUNCTIONS
+// ============================================
+
+/**
+ * Show dialog to link a horde to a summoner
+ */
+async function showLinkDialog() {
+  if (!isGM()) {
+    ui.notifications.warn("Only the GM can link hordes to summoners.");
+    return;
+  }
+
+  // Get all character actors for summoner selection
+  const characters = game.actors.filter((a) => a.type === "character");
+  // Get all NPC actors for horde selection
+  const npcs = game.actors.filter((a) => a.type === "npc");
+
+  if (characters.length === 0) {
+    ui.notifications.warn("No character actors found.");
+    return;
+  }
+
+  if (npcs.length === 0) {
+    ui.notifications.warn("No NPC actors found.");
+    return;
+  }
+
+  const summonerOptions = characters.map((a) => `<option value="${a.id}">${a.name}</option>`).join("");
+  const hordeOptions = npcs.map((a) => `<option value="${a.id}">${a.name}</option>`).join("");
+
+  const content = `
+    <form>
+      <div class="form-group">
+        <label>Summoner (Character):</label>
+        <select name="summonerId" style="width: 100%;">
+          ${summonerOptions}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Horde (NPC):</label>
+        <select name="hordeId" style="width: 100%;">
+          ${hordeOptions}
+        </select>
+      </div>
+    </form>
+  `;
+
+  new Dialog({
+    title: "Link Horde to Summoner",
+    content,
+    buttons: {
+      link: {
+        icon: '<i class="fas fa-link"></i>',
+        label: "Link",
+        callback: async (html) => {
+          const summonerId = html.find('[name="summonerId"]').val();
+          const hordeId = html.find('[name="hordeId"]').val();
+          await linkHorde(summonerId, hordeId);
+        },
+      },
+      cancel: {
+        icon: '<i class="fas fa-times"></i>',
+        label: "Cancel",
+      },
+    },
+    default: "link",
+  }).render(true);
+}
+
+/**
+ * Show dialog to unlink a horde
+ */
+async function showUnlinkDialog() {
+  if (!isGM()) {
+    ui.notifications.warn("Only the GM can unlink hordes.");
+    return;
+  }
+
+  // Find all linked hordes
+  const linkedHordes = [];
+  for (const actor of game.actors) {
+    const summonerId = findLinkedSummoner(actor);
+    if (summonerId) {
+      const summoner = game.actors.get(summonerId);
+      linkedHordes.push({
+        horde: actor,
+        summonerName: summoner?.name ?? "Unknown",
+      });
+    }
+  }
+
+  if (linkedHordes.length === 0) {
+    ui.notifications.info("No linked hordes found.");
+    return;
+  }
+
+  const hordeOptions = linkedHordes
+    .map((h) => `<option value="${h.horde.id}">${h.horde.name} (linked to ${h.summonerName})</option>`)
+    .join("");
+
+  const content = `
+    <form>
+      <div class="form-group">
+        <label>Select Horde to Unlink:</label>
+        <select name="hordeId" style="width: 100%;">
+          ${hordeOptions}
+        </select>
+      </div>
+    </form>
+  `;
+
+  new Dialog({
+    title: "Unlink Horde",
+    content,
+    buttons: {
+      unlink: {
+        icon: '<i class="fas fa-unlink"></i>',
+        label: "Unlink",
+        callback: async (html) => {
+          const hordeId = html.find('[name="hordeId"]').val();
+          await unlinkHorde(hordeId);
+        },
+      },
+      cancel: {
+        icon: '<i class="fas fa-times"></i>',
+        label: "Cancel",
+      },
+    },
+    default: "unlink",
+  }).render(true);
+}
+
+// ============================================
+// DEBOUNCE AND HOOKS
+// ============================================
 
 /**
  * Debounced sync handler
@@ -447,7 +583,25 @@ async function performInitialSync() {
   syncInProgress = true;
 
   try {
-    await syncAll();
+    // Silent sync without notification
+    const processedSummoners = new Set();
+
+    for (const actor of game.actors) {
+      const summonerId = findLinkedSummoner(actor);
+      if (!summonerId) continue;
+
+      const summoner = game.actors.get(summonerId);
+      if (!summoner) continue;
+
+      if (!processedSummoners.has(summonerId)) {
+        processedSummoners.add(summonerId);
+
+        const hordes = findLinkedHordes(summoner);
+        for (const horde of hordes) {
+          await syncSummonerToHorde(summoner, horde);
+        }
+      }
+    }
   } finally {
     syncInProgress = false;
   }
@@ -525,9 +679,10 @@ function cleanupHooks() {
   log("Hooks cleaned up");
 }
 
-/**
- * Module initialization
- */
+// ============================================
+// MODULE INITIALIZATION
+// ============================================
+
 Hooks.once("init", () => {
   console.log(`[${MODULE_ID}] Initializing module`);
 
@@ -538,9 +693,6 @@ Hooks.once("init", () => {
   }
 });
 
-/**
- * Module ready - register hooks and perform initial sync
- */
 Hooks.once("ready", () => {
   console.log(`[${MODULE_ID}] Module ready`);
 
@@ -556,44 +708,18 @@ Hooks.once("ready", () => {
   }
 });
 
-/**
- * Expose module API for manual sync and debugging
- */
+// Expose module API
 Hooks.once("ready", () => {
   game.modules.get(MODULE_ID).api = {
-    /**
-     * Link a horde to a summoner
-     * @param {string} summonerId - The summoner's actor ID
-     * @param {string} hordeId - The horde's actor ID
-     */
     linkHorde,
-
-    /**
-     * Unlink a horde from its summoner
-     * @param {string} hordeId - The horde's actor ID
-     */
     unlinkHorde,
-
-    /**
-     * Manually sync all linked pairs
-     */
     sync: syncAll,
-
-    /**
-     * Find all hordes linked to a summoner
-     * @param {string} summonerId - The summoner's actor ID
-     * @returns {Actor[]} Array of linked horde actors
-     */
+    showLinkDialog,
+    showUnlinkDialog,
     findLinkedHordes: (summonerId) => {
       const summoner = game.actors.get(summonerId);
       return summoner ? findLinkedHordes(summoner) : [];
     },
-
-    /**
-     * Find the summoner linked to a horde
-     * @param {string} hordeId - The horde's actor ID
-     * @returns {Actor|null} The linked summoner or null
-     */
     findLinkedSummoner: (hordeId) => {
       const horde = game.actors.get(hordeId);
       if (!horde) return null;
@@ -602,9 +728,5 @@ Hooks.once("ready", () => {
     },
   };
 
-  log("Module API exposed at game.modules.get('necrologist-horde-sync').api");
-  log("Usage:");
-  log("  api.linkHorde(summonerId, hordeId)  - Create link between summoner and horde");
-  log("  api.unlinkHorde(hordeId)            - Remove link from horde");
-  log("  api.sync()                          - Manually sync all pairs");
+  log("Module API ready");
 });

@@ -21,6 +21,14 @@
     ]
   },
   "esmodules": ["scripts/main.js"],
+  "packs": [
+    {
+      "name": "macros",
+      "label": "Necrologist Horde Sync Macros",
+      "path": "packs/macros.db",
+      "type": "Macro"
+    }
+  ],
   "manifest": "https://raw.githubusercontent.com/Dibbli/necrologist-horde-sync/main/module.json",
   "download": "https://github.com/Dibbli/necrologist-horde-sync/releases/download/v1.0.0/necrologist-horde-sync.zip"
 }
