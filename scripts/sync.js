@@ -13,6 +13,8 @@ import {
   createBondEffectData,
   calculateModifiers,
   updateEffectModifiers,
+  hasDeathguardFeat,
+  setDeathguardFlag,
 } from "./effects.js";
 
 /** @type {Set<string>} Actor IDs currently being synced (prevents race conditions) */
@@ -50,6 +52,7 @@ export async function syncSummonerToHorde(summoner, horde) {
     log("Calculated modifiers:", modifiers);
 
     await updateEffectModifiers(effect, modifiers, syncOptions);
+    await setDeathguardFlag(horde, hasDeathguardFeat(summoner));
 
     const updateData = { [`flags.${MODULE_ID}.lastSync`]: Date.now() };
     if (syncOptions.hp) {

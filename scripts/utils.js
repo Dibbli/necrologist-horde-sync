@@ -8,6 +8,12 @@ export const EFFECT_SLUG = "necrologist-bond";
 export const EFFECT_LABEL = "Necrologist Bond";
 export const EFFECT_ICON = "icons/magic/unholy/strike-body-explode-disintegrate.webp";
 
+export const DEATHGUARD_FEAT_SLUG = "deathguard";
+export const DEATHGUARD_FLAG = "deathguard";
+export const DEATHGUARD_SOURCE_FLAG = "deathguardSource";
+export const DEATHGUARD_EFFECT_UUID_DEFAULT =
+  "Compendium.necrologist-horde-sync.items.Item.nhsdeathguard001";
+
 /** @type {string[]} PF2e core skills */
 export const SKILLS = [
   "acrobatics", "arcana", "athletics", "crafting", "deception", "diplomacy",

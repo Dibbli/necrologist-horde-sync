@@ -3,7 +3,17 @@
  * @module effects
  */
 
-import { MODULE_ID, EFFECT_SLUG, EFFECT_LABEL, EFFECT_ICON, SKILLS, log, logError } from "./utils.js";
+import {
+  MODULE_ID,
+  EFFECT_SLUG,
+  EFFECT_LABEL,
+  EFFECT_ICON,
+  SKILLS,
+  DEATHGUARD_FEAT_SLUG,
+  DEATHGUARD_FLAG,
+  log,
+  logError,
+} from "./utils.js";
 
 /**
  * @typedef {Object} StatModifiers
@@ -54,6 +64,46 @@ const DEFAULT_SYNC_OPTIONS = { ac: true, saves: true, skills: true, hp: true };
 export function getSyncOptions(horde) {
   const effect = findBondEffect(horde);
   return effect?.flags?.[MODULE_ID]?.syncOptions ?? { ...DEFAULT_SYNC_OPTIONS };
+}
+
+/**
+ * Whether the actor (a summoner) has the Deathguard feat.
+ * Detection is slug-based so it works for PF2e SRD, homebrew, or embedded copies.
+ * @param {Actor} actor
+ * @returns {boolean}
+ */
+export function hasDeathguardFeat(actor) {
+  return !!actor?.itemTypes?.feat?.some((f) => f.slug === DEATHGUARD_FEAT_SLUG);
+}
+
+/**
+ * Read the deathguard flag from a horde's bond effect.
+ * @param {Actor} horde
+ * @returns {boolean}
+ */
+export function getDeathguardFlag(horde) {
+  const effect = findBondEffect(horde);
+  return !!effect?.flags?.[MODULE_ID]?.[DEATHGUARD_FLAG];
+}
+
+/**
+ * Write the deathguard flag to a horde's bond effect, only if it changed.
+ * @param {Actor} horde
+ * @param {boolean} value
+ * @returns {Promise<boolean>} true if a write occurred
+ */
+export async function setDeathguardFlag(horde, value) {
+  const effect = findBondEffect(horde);
+  if (!effect) return false;
+  const current = !!effect.flags?.[MODULE_ID]?.[DEATHGUARD_FLAG];
+  if (current === !!value) return false;
+  try {
+    await effect.update({ [`flags.${MODULE_ID}.${DEATHGUARD_FLAG}`]: !!value });
+    return true;
+  } catch (e) {
+    logError("Failed to write deathguard flag:", e);
+    return false;
+  }
 }
 
 /**

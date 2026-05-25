@@ -24,6 +24,7 @@ import {
   performInitialSync,
 } from "./sync.js";
 import { showLinkDialog, showUnlinkDialog } from "./dialogs.js";
+import { initDeathguard } from "./deathguard.js";
 
 /** @type {number|null} */
 let updateActorHookId = null;
@@ -238,6 +239,7 @@ function exposeApi() {
 Hooks.once("init", () => {
   console.log(`[${MODULE_ID}] Initializing`);
   registerSettings();
+  initDeathguard();
 });
 
 Hooks.once("ready", () => {
