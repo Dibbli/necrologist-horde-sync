@@ -43,15 +43,24 @@ function getToggleEffectUuid() {
 }
 
 function findGrantedByFlag(actor, flag) {
-  return actor.itemTypes.effect.find((e) => e.getFlag(MODULE_ID, flag) === true);
+  // Search every item type, not just effects, because some hosts are feats now.
+  return actor.items.find((i) => i.getFlag?.(MODULE_ID, flag) === true) ?? null;
 }
 
 async function grantEffect(actor, uuid, flag) {
-  if (findGrantedByFlag(actor, flag)) return null;
   const source = await fromUuid(uuid);
   if (!source) {
-    logError(`Effect not found at UUID: ${uuid}`);
+    logError(`Source item not found at UUID: ${uuid}`);
     return null;
+  }
+  const sourceType = source.type;
+  const existing = findGrantedByFlag(actor, flag);
+  if (existing) {
+    // Already correct type? Done.
+    if (existing.type === sourceType) return existing;
+    // v1.6.x → v1.7.x migration: stale host type, swap it out.
+    log(`Migrating ${MODULE_ID} grant on "${actor.name}": ${existing.type} → ${sourceType}`);
+    await actor.deleteEmbeddedDocuments("Item", [existing.id]);
   }
   const data = source.toObject();
   data.flags = data.flags || {};
