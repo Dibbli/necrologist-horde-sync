@@ -73,18 +73,6 @@ function readRollOptionValue(effect) {
   return !!re?.value;
 }
 
-async function writeRollOptionValue(effect, value) {
-  const rules = foundry.utils.deepClone(effect.system.rules ?? []);
-  const idx = rules.findIndex(
-    (r) => r.key === "RollOption" && r.option === SPIRIT_HORDE_ROLL_OPTION
-  );
-  if (idx === -1) return false;
-  if (!!rules[idx].value === !!value) return false;
-  rules[idx].value = !!value;
-  await effect.update({ "system.rules": rules });
-  return true;
-}
-
 /**
  * Push the toggle (summoner) and spirit-horde effect (each linked horde) on/off
  * based on whether the summoner has Ghost Song.
@@ -102,12 +90,7 @@ export async function syncGhostsongGrants(summoner) {
     }
     const toggleEffect = findGrantedByFlag(summoner, GHOSTSONG_TOGGLE_FLAG);
     const value = toggleEffect ? readRollOptionValue(toggleEffect) : false;
-    for (const horde of hordes) {
-      if (!canModifyActor(horde)) continue;
-      await grantEffect(horde, getHordeEffectUuid(), GHOSTSONG_HORDE_FLAG);
-      const hEff = findGrantedByFlag(horde, GHOSTSONG_HORDE_FLAG);
-      if (hEff) await writeRollOptionValue(hEff, value);
-    }
+    await mirrorToHordes(summoner, value);
   } else {
     if (canModifyActor(summoner)) await removeGranted(summoner, GHOSTSONG_TOGGLE_FLAG);
     for (const horde of hordes) {
@@ -118,8 +101,9 @@ export async function syncGhostsongGrants(summoner) {
 }
 
 /**
- * Mirror the summoner-side toggle's RollOption value to every linked horde's
- * Spirit Horde effect.
+ * Grant/remove the horde-side Spirit Horde effect on each linked horde based
+ * on the summoner's toggle state. The effect's presence is the source of truth
+ * for "is this a spirit horde right now".
  * @param {Actor} summoner
  * @param {boolean} value
  */
@@ -127,9 +111,11 @@ async function mirrorToHordes(summoner, value) {
   const hordes = findLinkedHordes(summoner);
   for (const horde of hordes) {
     if (!canModifyActor(horde)) continue;
-    const hEff = findGrantedByFlag(horde, GHOSTSONG_HORDE_FLAG);
-    if (!hEff) continue;
-    await writeRollOptionValue(hEff, value);
+    if (value) {
+      await grantEffect(horde, getHordeEffectUuid(), GHOSTSONG_HORDE_FLAG);
+    } else {
+      await removeGranted(horde, GHOSTSONG_HORDE_FLAG);
+    }
   }
 }
 

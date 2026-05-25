@@ -45,16 +45,36 @@ function getEffectUuid() {
 }
 
 /**
+ * Resolve the effective position/size of a token, preferring fields from a
+ * pending `changes` object over the document's current state. Foundry v13/v14
+ * fires `updateToken` with the destination in `changes` while `tokenDoc.x/y`
+ * may still reflect the pre-move position until the movement settles, so
+ * reading off the doc alone causes "fires on the wrong edge of movement".
  * @param {TokenDocument} tokenDoc
+ * @param {Object} [changes]
+ * @returns {{x:number,y:number,w:number,h:number}}
+ */
+function effectiveDims(tokenDoc, changes) {
+  const c = changes ?? {};
+  return {
+    x: c.x ?? tokenDoc.x,
+    y: c.y ?? tokenDoc.y,
+    w: c.width ?? tokenDoc.width,
+    h: c.height ?? tokenDoc.height,
+  };
+}
+
+/**
+ * @param {{x:number,y:number,w:number,h:number}} dims
  * @returns {Set<string>} grid-cell keys "gx,gy"
  */
-function getOccupiedSquares(tokenDoc) {
+function getOccupiedSquares(dims) {
   const grid = canvas?.grid;
   if (!grid?.size) return new Set();
-  const gx = Math.round(tokenDoc.x / grid.size);
-  const gy = Math.round(tokenDoc.y / grid.size);
-  const w = Math.max(1, Math.round(tokenDoc.width));
-  const h = Math.max(1, Math.round(tokenDoc.height));
+  const gx = Math.round(dims.x / grid.size);
+  const gy = Math.round(dims.y / grid.size);
+  const w = Math.max(1, Math.round(dims.w));
+  const h = Math.max(1, Math.round(dims.h));
   const out = new Set();
   for (let dx = 0; dx < w; dx++) {
     for (let dy = 0; dy < h; dy++) out.add(`${gx + dx},${gy + dy}`);
@@ -63,16 +83,16 @@ function getOccupiedSquares(tokenDoc) {
 }
 
 /**
- * Pixel-rect AABB overlap on two token docs.
- * @param {TokenDocument} a
- * @param {TokenDocument} b
+ * Pixel-rect AABB overlap.
+ * @param {{x:number,y:number,w:number,h:number}} a
+ * @param {{x:number,y:number,w:number,h:number}} b
  */
 function aabbOverlap(a, b) {
   const g = canvas.grid.size;
-  const ax2 = a.x + a.width * g;
-  const ay2 = a.y + a.height * g;
-  const bx2 = b.x + b.width * g;
-  const by2 = b.y + b.height * g;
+  const ax2 = a.x + a.w * g;
+  const ay2 = a.y + a.h * g;
+  const bx2 = b.x + b.w * g;
+  const by2 = b.y + b.h * g;
   return a.x < bx2 && ax2 > b.x && a.y < by2 && ay2 > b.y;
 }
 
@@ -143,20 +163,24 @@ function invalidateScene(scene) {
 
 /**
  * Evaluate overlap between a horde token and a candidate ally token.
+ * Callers supply already-resolved dims so the moving side can pass its
+ * destination instead of the document's stale x/y.
  * @param {TokenDocument} hordeTok
  * @param {TokenDocument} otherTok
+ * @param {{x:number,y:number,w:number,h:number}} hordeDims
+ * @param {{x:number,y:number,w:number,h:number}} otherDims
  * @returns {Promise<void>}
  */
-async function evaluatePair(hordeTok, otherTok) {
+async function evaluatePair(hordeTok, otherTok, hordeDims, otherDims) {
   const hordeActor = hordeTok.actor;
   const otherActor = otherTok.actor;
   if (!hordeActor || !otherActor) return;
   if (!isAlly(hordeActor, otherActor)) return;
   if (!canModifyActor(otherActor)) return;
 
-  let overlapping = aabbOverlap(hordeTok, otherTok);
+  let overlapping = aabbOverlap(hordeDims, otherDims);
   if (overlapping) {
-    overlapping = setsOverlap(getOccupiedSquares(hordeTok), getOccupiedSquares(otherTok));
+    overlapping = setsOverlap(getOccupiedSquares(hordeDims), getOccupiedSquares(otherDims));
   }
 
   if (overlapping) await ensureEffect(otherActor, hordeActor.id);
@@ -193,9 +217,10 @@ async function recomputeScene(scene) {
     if (t) hordeTokens.push(t);
   }
   for (const ht of hordeTokens) {
+    const hDims = effectiveDims(ht);
     for (const ot of scene.tokens) {
       if (ot.id === ht.id) continue;
-      await evaluatePair(ht, ot);
+      await evaluatePair(ht, ot, hDims, effectiveDims(ot));
     }
   }
 }
@@ -216,23 +241,27 @@ function scheduleRecompute(scene) {
 /**
  * Hot path: a single token just changed position/size.
  * @param {TokenDocument} tokenDoc
+ * @param {Object} [changes] - the pending update; we merge x/y/width/height
+ *   from it onto the doc so geometry uses the destination, not the stale doc.
  */
-async function onTokenMoved(tokenDoc) {
+async function onTokenMoved(tokenDoc, changes) {
   const scene = tokenDoc.parent;
   if (!scene || !game.user?.isGM) return;
   const cache = getCache(scene);
   if (cache.size === 0) return;
 
+  const movedDims = effectiveDims(tokenDoc, changes);
+
   if (cache.has(tokenDoc.id)) {
     for (const ot of scene.tokens) {
       if (ot.id === tokenDoc.id) continue;
-      await evaluatePair(tokenDoc, ot);
+      await evaluatePair(tokenDoc, ot, movedDims, effectiveDims(ot));
     }
   } else {
     for (const id of cache) {
       const ht = scene.tokens.get(id);
       if (!ht) continue;
-      await evaluatePair(ht, tokenDoc);
+      await evaluatePair(ht, tokenDoc, effectiveDims(ht), movedDims);
     }
   }
 }
@@ -279,7 +308,7 @@ function registerHooks() {
     try {
       if (userId !== game.user?.id) return;
       if (!("x" in changes || "y" in changes || "width" in changes || "height" in changes)) return;
-      onTokenMoved(tokenDoc).catch((e) => logError("onTokenMoved:", e));
+      onTokenMoved(tokenDoc, changes).catch((e) => logError("onTokenMoved:", e));
     } catch (e) {
       logError("updateToken hook:", e);
     }
