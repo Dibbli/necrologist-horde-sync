@@ -25,6 +25,7 @@ import {
 } from "./sync.js";
 import { showLinkDialog, showUnlinkDialog } from "./dialogs.js";
 import { initDeathguard } from "./deathguard.js";
+import { initGhostsong } from "./ghostsong.js";
 
 /** @type {number|null} */
 let updateActorHookId = null;
@@ -240,6 +241,7 @@ Hooks.once("init", () => {
   console.log(`[${MODULE_ID}] Initializing`);
   registerSettings();
   initDeathguard();
+  initGhostsong();
 });
 
 Hooks.once("ready", () => {

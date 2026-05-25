@@ -11,6 +11,7 @@ import {
   SKILLS,
   DEATHGUARD_FEAT_SLUG,
   DEATHGUARD_FLAG,
+  GHOSTSONG_FEAT_SLUG,
   log,
   logError,
 } from "./utils.js";
@@ -74,6 +75,15 @@ export function getSyncOptions(horde) {
  */
 export function hasDeathguardFeat(actor) {
   return !!actor?.itemTypes?.feat?.some((f) => f.slug === DEATHGUARD_FEAT_SLUG);
+}
+
+/**
+ * Whether the actor (a summoner) has the Ghost Song feat (slug-based).
+ * @param {Actor} actor
+ * @returns {boolean}
+ */
+export function hasGhostsongFeat(actor) {
+  return !!actor?.itemTypes?.feat?.some((f) => f.slug === GHOSTSONG_FEAT_SLUG);
 }
 
 /**

@@ -14,6 +14,15 @@ export const DEATHGUARD_SOURCE_FLAG = "deathguardSource";
 export const DEATHGUARD_EFFECT_UUID_DEFAULT =
   "Compendium.necrologist-horde-sync.items.Item.nhsdeathguard001";
 
+export const GHOSTSONG_FEAT_SLUG = "ghostsong";
+export const GHOSTSONG_HORDE_FLAG = "ghostsongGrant";
+export const GHOSTSONG_TOGGLE_FLAG = "ghostsongToggle";
+export const SPIRIT_HORDE_ROLL_OPTION = "spirit-horde";
+export const SPIRIT_HORDE_EFFECT_UUID_DEFAULT =
+  "Compendium.necrologist-horde-sync.items.Item.nhsspirithorde01";
+export const SPIRIT_HORDE_TOGGLE_EFFECT_UUID_DEFAULT =
+  "Compendium.necrologist-horde-sync.items.Item.nhsspirithordet1";
+
 /** @type {string[]} PF2e core skills */
 export const SKILLS = [
   "acrobatics", "arcana", "athletics", "crafting", "deception", "diplomacy",
