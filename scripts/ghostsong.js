@@ -155,10 +155,11 @@ function registerHooks() {
   Hooks.on("createItem", onFeatChange);
   Hooks.on("deleteItem", onFeatChange);
 
-  // Summoner toggles the Spirit Horde Toggle effect → propagate to hordes
+  // Summoner toggles the Spirit Horde Toggle → propagate to hordes.
+  // The host can be a feat or effect, so gate on the flag rather than type.
   Hooks.on("updateItem", (item, changes) => {
     try {
-      if (item?.type !== "effect") return;
+      if (!item) return;
       if (item.getFlag?.(MODULE_ID, GHOSTSONG_TOGGLE_FLAG) !== true) return;
       const summoner = item.parent;
       if (!summoner) return;
