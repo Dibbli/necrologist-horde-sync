@@ -304,9 +304,14 @@ function registerSettings() {
 }
 
 function registerHooks() {
-  Hooks.on("updateToken", (tokenDoc, changes, _options, userId) => {
+  Hooks.on("updateToken", (tokenDoc, changes, _options, _userId) => {
     try {
-      if (userId !== game.user?.id) return;
+      // Process on the designated GM client regardless of who moved the token.
+      // Gating on the initiating user (userId === game.user.id) made player
+      // moves invisible: the player client bailed at the isGM check in
+      // onTokenMoved, and the GM client bailed here — so only GM-initiated
+      // moves were ever evaluated.
+      if (game.user !== game.users?.activeGM) return;
       if (!("x" in changes || "y" in changes || "width" in changes || "height" in changes)) return;
       onTokenMoved(tokenDoc, changes).catch((e) => logError("onTokenMoved:", e));
     } catch (e) {
